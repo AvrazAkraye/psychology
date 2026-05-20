@@ -20,7 +20,7 @@ from PIL import Image, ImageDraw, ImageFont
 
 ROOT = Path(__file__).resolve().parent.parent
 COVERS = ROOT / "covers"
-SITE_URL = "https://avrazakraye.github.io/psychology/"
+SITE_URL = "https://psychology-weld.vercel.app/"
 
 ARABIC_FONT_CANDIDATES = [
     "/System/Library/Fonts/Supplemental/Arial Unicode.ttf",
