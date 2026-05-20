@@ -54,12 +54,23 @@
       color: var(--accent);
       letter-spacing: 0.2px;
     }
-    .header-actions { display: flex; gap: 10px; align-items: center; }
+    .header-actions { display: flex; gap: 14px; align-items: center; }
     .pill {
       background: var(--panel); border: 1px solid var(--border);
       padding: 8px 14px; border-radius: 999px;
       font-size: 13px; color: var(--muted);
     }
+    .uod {
+      display: inline-flex;
+      width: 56px; height: 56px;
+      background: #fff; border-radius: 12px;
+      padding: 4px;
+      border: 1px solid var(--border);
+      box-shadow: 0 4px 14px rgba(0,0,0,0.25);
+      transition: transform 0.18s ease;
+    }
+    .uod:hover { transform: scale(1.05); }
+    .uod img { width: 100%; height: 100%; object-fit: contain; }
 
     .hero {
       background: linear-gradient(135deg, rgba(56,189,248,0.12), rgba(129,140,248,0.10));
@@ -156,6 +167,17 @@
     .qr-text h4 { margin: 0 0 4px; font-size: 15px; }
     .qr-text p { margin: 0; color: var(--muted); font-size: 13px; word-break: break-all; }
     .footer-end { text-align: end; color: var(--muted); font-size: 13px; }
+    .footer-uod {
+      display: inline-flex; align-items: center; gap: 10px;
+      margin-bottom: 6px; justify-content: flex-end;
+    }
+    .footer-uod img {
+      width: 44px; height: 44px;
+      background: #fff; border-radius: 8px;
+      padding: 3px;
+      border: 1px solid var(--border);
+    }
+    .footer-uod > div > div:first-child { color: var(--text); font-weight: 600; }
 
     @media (max-width: 640px) {
       .wrap { padding: 20px 14px 48px; }
@@ -183,6 +205,9 @@
       </div>
       <div class="header-actions">
         <span class="pill">٧ كتب</span>
+        <a class="uod" href="https://uod.ac" target="_blank" rel="noopener" aria-label="جامعة دهوك">
+          <img src="uod-logo.png" alt="جامعة دهوك">
+        </a>
       </div>
     </header>
 
@@ -312,7 +337,13 @@
         </div>
       </div>
       <div class="footer-end">
-        <div>جامعة دهوك &middot; كلية العلوم الإنسانية</div>
+        <div class="footer-uod">
+          <img src="uod-logo.png" alt="جامعة دهوك">
+          <div>
+            <div>جامعة دهوك</div>
+            <div>كلية العلوم الإنسانية</div>
+          </div>
+        </div>
         <div>مكتبة شارين · ٢٠٢٦</div>
         <div>الكتب الخارجية مستضافة على noor-book.com</div>
       </div>
