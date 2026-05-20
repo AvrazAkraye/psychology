@@ -6,6 +6,9 @@ Generates assets for the Shareen psychology library:
 
 Run from the project root:
     .venv/bin/python tools/build.py
+
+Uses Pillow's RAQM layout engine for proper Arabic shaping (so we pass
+raw Arabic text — no manual reshape/bidi).
 """
 
 from __future__ import annotations
@@ -13,49 +16,55 @@ from __future__ import annotations
 import os
 from pathlib import Path
 
-import arabic_reshaper
 import qrcode
-from bidi.algorithm import get_display
-from PIL import Image, ImageDraw, ImageFont
+from PIL import Image, ImageDraw, ImageFont, features
 
 ROOT = Path(__file__).resolve().parent.parent
 COVERS = ROOT / "covers"
 SITE_URL = "https://psychology-weld.vercel.app/"
 
-ARABIC_FONT_CANDIDATES = [
-    "/System/Library/Fonts/Supplemental/Arial Unicode.ttf",
-    "/System/Library/Fonts/GeezaPro.ttc",
-    "/System/Library/Fonts/NotoSansArabic.ttc",
-]
+FONT_REGULAR = str(ROOT / "fonts" / "Cairo-Regular.ttf")
+FONT_BOLD = str(ROOT / "fonts" / "Cairo-Bold.ttf")
+for _p in (FONT_REGULAR, FONT_BOLD):
+    if not os.path.exists(_p):
+        raise SystemExit(f"Missing font file: {_p}")
+if not features.check("raqm"):
+    raise SystemExit(
+        "Pillow was built without libraqm. Reinstall in this venv with:\n"
+        "  pip install --upgrade --force-reinstall 'pillow[raqm]'"
+    )
+
+LAYOUT = ImageFont.Layout.RAQM
+DIRECTION = "rtl"
 
 
-def find_arabic_font() -> str:
-    for path in ARABIC_FONT_CANDIDATES:
-        if os.path.exists(path):
-            return path
-    raise SystemExit("No Arabic-capable font found")
+def load_font(path: str, size: int) -> ImageFont.FreeTypeFont:
+    return ImageFont.truetype(path, size, layout_engine=LAYOUT)
 
 
-FONT_PATH = find_arabic_font()
+def text_size(draw: ImageDraw.ImageDraw, text: str, font):
+    bbox = draw.textbbox((0, 0), text, font=font, direction=DIRECTION)
+    return bbox[2] - bbox[0], bbox[3] - bbox[1], bbox
 
 
-def shape(text: str) -> str:
-    return get_display(arabic_reshaper.reshape(text))
-
-
-def draw_centered(draw: ImageDraw.ImageDraw, xy_center, text, font, fill):
-    bbox = draw.textbbox((0, 0), text, font=font)
-    w, h = bbox[2] - bbox[0], bbox[3] - bbox[1]
+def draw_centered_rtl(draw: ImageDraw.ImageDraw, xy_center, text, font, fill):
+    w, h, bbox = text_size(draw, text, font)
     cx, cy = xy_center
-    draw.text((cx - w / 2 - bbox[0], cy - h / 2 - bbox[1]), text, font=font, fill=fill)
+    draw.text(
+        (cx - w / 2 - bbox[0], cy - h / 2 - bbox[1]),
+        text,
+        font=font,
+        fill=fill,
+        direction=DIRECTION,
+    )
 
 
-def wrap(text: str, font: ImageFont.FreeTypeFont, max_width: int, draw: ImageDraw.ImageDraw):
+def wrap(text: str, font, max_width: int, draw: ImageDraw.ImageDraw):
     words = text.split()
     lines, current = [], ""
     for w in words:
         trial = f"{current} {w}".strip()
-        if draw.textlength(shape(trial), font=font) <= max_width:
+        if draw.textlength(trial, font=font, direction=DIRECTION) <= max_width:
             current = trial
         else:
             if current:
@@ -66,13 +75,7 @@ def wrap(text: str, font: ImageFont.FreeTypeFont, max_width: int, draw: ImageDra
     return lines
 
 
-def make_cover(
-    out_path: Path,
-    title: str,
-    subtitle: str,
-    top_color: tuple,
-    bot_color: tuple,
-):
+def make_cover(out_path: Path, title: str, subtitle: str, top_color, bot_color):
     W, H = 600, 900
     img = Image.new("RGB", (W, H), top_color)
     # vertical gradient
@@ -85,35 +88,29 @@ def make_cover(
             img.putpixel((x, y), (r, g, b))
     d = ImageDraw.Draw(img)
 
-    # decorative top band
+    # decorative top/bottom band
     d.rectangle((0, 0, W, 12), fill=(255, 255, 255, 80))
     d.rectangle((0, H - 12, W, H), fill=(255, 255, 255, 80))
 
     # Title — wrap to fit
-    title_font = ImageFont.truetype(FONT_PATH, 56)
+    title_font = load_font(FONT_BOLD, 56)
     max_text_w = W - 80
     lines = wrap(title, title_font, max_text_w, d)
     if len(lines) > 4:
-        title_font = ImageFont.truetype(FONT_PATH, 44)
+        title_font = load_font(FONT_BOLD, 44)
         lines = wrap(title, title_font, max_text_w, d)
 
     line_h = title_font.size + 12
     total_h = line_h * len(lines)
     y = (H - total_h) // 2 - 40
     for line in lines:
-        shaped = shape(line)
-        draw_centered(d, (W // 2, y + line_h // 2), shaped, title_font, fill=(255, 255, 255))
+        draw_centered_rtl(d, (W // 2, y + line_h // 2), line, title_font, fill=(255, 255, 255))
         y += line_h
 
     # Subtitle (author / source)
     if subtitle:
-        sub_font = ImageFont.truetype(FONT_PATH, 28)
-        shaped_sub = shape(subtitle)
-        draw_centered(d, (W // 2, H - 100), shaped_sub, sub_font, fill=(255, 255, 255))
-
-    # Small "Shareen" mark
-    mark_font = ImageFont.truetype(FONT_PATH, 22)
-    d.text((20, H - 36), "Shareen", font=mark_font, fill=(255, 255, 255))
+        sub_font = load_font(FONT_REGULAR, 28)
+        draw_centered_rtl(d, (W // 2, H - 100), subtitle, sub_font, fill=(255, 255, 255))
 
     img.save(out_path, "JPEG", quality=88)
     print(f"wrote {out_path.relative_to(ROOT)}")
@@ -124,29 +121,29 @@ GENERATED_COVERS = [
         "slug": "al-murahaqa-wal-inaya",
         "title": "المراهقة والعناية بالمراهقين",
         "subtitle": "",
-        "top": (79, 70, 229),   # indigo-600
-        "bot": (30, 27, 75),    # indigo-950
+        "top": (79, 70, 229),
+        "bot": (30, 27, 75),
     },
     {
         "slug": "zahran-tufula-murahaqa",
         "title": "علم نفس النمو: الطفولة والمراهقة",
         "subtitle": "د. حامد عبد السلام زهران",
-        "top": (13, 148, 136),  # teal-600
-        "bot": (4, 47, 46),     # teal-950
+        "top": (13, 148, 136),
+        "bot": (4, 47, 46),
     },
     {
         "slug": "usra-hal-mushkilat",
         "title": "سيكولوجية الطفولة والمراهقة — الأسرة ودورها في حل مشكلات الطفل",
         "subtitle": "",
-        "top": (217, 119, 6),   # amber-600
-        "bot": (69, 26, 3),     # amber-950
+        "top": (217, 119, 6),
+        "bot": (69, 26, 3),
     },
     {
         "slug": "sikolojia-tifl-murahiq",
         "title": "سيكولوجية الطفل والمراهق",
         "subtitle": "",
-        "top": (225, 29, 72),   # rose-600
-        "bot": (76, 5, 25),     # rose-950
+        "top": (225, 29, 72),
+        "bot": (76, 5, 25),
     },
 ]
 
